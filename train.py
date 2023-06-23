@@ -1,95 +1,81 @@
-
-import os
-
+import os,sys
 from transformers import AutoProcessor, Pix2StructForConditionalGeneration
+from transformers import Seq2SeqTrainer, Seq2SeqTrainingArguments, default_data_collator
 
-from transformers import  Seq2SeqTrainer,Seq2SeqTrainingArguments
-
-from transformers import default_data_collator
-
-import sys
 sys.path.insert(1, '/home/jovis/Documents/WORK/Kaggle/BMGA/core/data')
-
 from data import BeneData
 
-os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"]="1"
+import hydra
+from omegaconf import DictConfig
+
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
-model_name = "google/deplot"
+@hydra.main(config_path="config", config_name="config")
+def main(cfg: DictConfig):
 
-processor = AutoProcessor.from_pretrained(model_name,is_vqa=False)
-model = Pix2StructForConditionalGeneration.from_pretrained(model_name) 
+    os.environ["CUDA_VISIBLE_DEVICES"] = cfg.CUDA_VISIBLE_DEVICES
 
+    model_name = cfg.model_name
 
-data_pipe = BeneData(processor=processor,
-                     labels_type="xy",
-                     labels_max_length=730,
-                     frac_gen_train=0.2,
-                    classes_to_use=['line', 'horizontal_bar', 'scatter', 'vertical_bar', 'dot'],  
-                     use_augmentation = True,
-                     use_synth=False,
-                     synth_paths= {"scatter":"/home/jovis/Documents/WORK/Kaggle/Benetech_Making_Graphs_Accessible/data/synth_data/scatter/v5",
-                                "horizontal_bar":"/home/jovis/Documents/WORK/Kaggle/Benetech_Making_Graphs_Accessible/data/synth_data/horizontal_bar/v1_10000_5_40",
-                                "vertical_bar":"/home/jovis/Documents/WORK/Kaggle/Benetech_Making_Graphs_Accessible/data/synth_data/vertical_bar/v1_1000_30_50",
-                                "dot":"/home/jovis/Documents/WORK/Kaggle/Benetech_Making_Graphs_Accessible/data/synth_data/vertical_bar/v1_1000_30_50",
-                                "line":"/home/jovis/Documents/WORK/Kaggle/Benetech_Making_Graphs_Accessible/data/synth_data/line/v3"},
-                     synth_numbers = {"scatter":5000,
-                                "horizontal_bar":5000,
-                                "dot":0,
-                                "vertical_bar":800,
-                                "line":7000}
-                    )
-train, valid = data_pipe.get_ds_splits()
+    processor = AutoProcessor.from_pretrained(model_name, is_vqa=False)
+    model = Pix2StructForConditionalGeneration.from_pretrained(model_name)
 
+    data_pipe = BeneData(
+        processor=processor,
+        labels_type=cfg.labels_type,
+        labels_max_length=cfg.labels_max_length,
+        frac_gen_train=cfg.frac_gen_train,
+        classes_to_use=cfg.classes_to_use,
+        use_augmentation=cfg.use_augmentation,
+        use_synth=cfg.use_synth,
+        synth_paths=cfg.synth_paths,
+        synth_numbers=cfg.synth_numbers
+    )
 
-training_config = Seq2SeqTrainingArguments(
-    output_dir="./output_l/hvdls_v1_l_v21",   
-    do_eval=True,
-    evaluation_strategy='steps',
-    per_device_train_batch_size=2,  
-    per_device_eval_batch_size=2, 
-    gradient_accumulation_steps=16, 
-    eval_accumulation_steps=None,
-    eval_steps=60,
-    save_steps=60,
-    logging_steps=20,
-    learning_rate=1e-5,
-    num_train_epochs=10,
-    lr_scheduler_type="cosine_with_restarts",
-    warmup_ratio=0,
-    logging_strategy="steps",
-    save_strategy="steps",
-    save_total_limit=2,
-    no_cuda=False,
-    seed=444,
-    bf16=True,
-    load_best_model_at_end=True,
-    torch_compile=True,
-    optim="adamw_torch",
-    report_to=["tensorboard"],
-    remove_unused_columns=False,
-    dataloader_num_workers=1,
-    prediction_loss_only=True
-)
+    train, valid = data_pipe.get_ds_splits()
 
-trainer = Seq2SeqTrainer(
-    model=model,
-    args=training_config,
-    data_collator=default_data_collator, 
-    train_dataset=train,    
-    eval_dataset=valid, 
-)
+    training_config = Seq2SeqTrainingArguments(
+        output_dir=cfg.output_dir,
+        do_eval=True,
+        evaluation_strategy=cfg.evaluation_strategy,
+        per_device_train_batch_size=cfg.per_device_train_batch_size,
+        per_device_eval_batch_size=cfg.per_device_eval_batch_size,
+        gradient_accumulation_steps=cfg.gradient_accumulation_steps,
+        eval_accumulation_steps=cfg.eval_accumulation_steps,
+        eval_steps=cfg.eval_steps,
+        save_steps=cfg.save_steps,
+        logging_steps=cfg.logging_steps,
+        learning_rate=cfg.learning_rate,
+        num_train_epochs=cfg.num_train_epochs,
+        lr_scheduler_type=cfg.lr_scheduler_type,
+        warmup_ratio=cfg.warmup_ratio,
+        logging_strategy=cfg.logging_strategy,
+        save_strategy=cfg.save_strategy,
+        save_total_limit=cfg.save_total_limit,
+        no_cuda=cfg.no_cuda,
+        seed=cfg.seed,
+        bf16=cfg.bf16,
+        load_best_model_at_end=cfg.load_best_model_at_end,
+        torch_compile=cfg.torch_compile,
+        optim=cfg.optim,
+        report_to=cfg.report_to,
+        remove_unused_columns=cfg.remove_unused_columns,
+        dataloader_num_workers=cfg.dataloader_num_workers,
+        prediction_loss_only=cfg.prediction_loss_only
+    )
 
-train_result = trainer.train()
-trainer.save_model()  
-trainer.log_metrics("train", train_result.metrics)
-trainer.save_metrics("train", train_result.metrics)
-trainer.save_state()
+    trainer = Seq2SeqTrainer(
+        model=model,
+        args=training_config,
+        data_collator=default_data_collator,
+        train_dataset=train,
+        eval_dataset=valid,
+    )
+
+    train_result = trainer.train()
 
 
-
-
-
-
+if __name__ == "__main__":
+    main()
