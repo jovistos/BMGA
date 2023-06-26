@@ -17,7 +17,6 @@ from datasets import Image as ds_img
 from transformers import AutoProcessor, Pix2StructForConditionalGeneration
 
 
-from datasets import Image as ds_img
 
 
 from transformers import  Seq2SeqTrainer,Seq2SeqTrainingArguments, EarlyStoppingCallback
@@ -103,6 +102,9 @@ class BeneData:
                                    
     
     def load_cp(self):
+        """
+        Load and merge lists saved in pickle files containing sample ids to be removed.
+        """
         cp_merged = []
         for file_name in self.cp_lists_names:
             path = os.path.join(self.SAVE_DIR_REMOVE,file_name)
@@ -113,6 +115,9 @@ class BeneData:
     
     
     def are_all_floats(self, l):
+        """
+        Checks if all the elements in a list can be converted to floats
+        """
         try:
             fl_l = [float(x) for x in l]
             return True
