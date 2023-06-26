@@ -37,20 +37,21 @@ import pickle
 
 import swifter
 
+from typing import List
+
 
 
 DATA_DIR = "/home/jovis/Documents/WORK/Kaggle/Benetech_Making_Graphs_Accessible/data/benetech-making-graphs-accessible/train"
 
-AUG_DATA_DIR = "/home/jovis/Documents/WORK/Kaggle/Benetech_Making_Graphs_Accessible/data/archive"
+SYNTH_DATA_DIR = "/home/jovis/Documents/WORK/Kaggle/Benetech_Making_Graphs_Accessible/data/archive"
 
 class BeneData:
     def __init__(self, processor = None,
                  labels_type = "xy",             
                  labels_max_length = 256,
                  frac_gen_train = 1,
-                 include_scatter = True,
                  data_dir=Path(DATA_DIR),
-                 aug_data_dir=Path(AUG_DATA_DIR),
+                 synth_data_dir=Path(SYNTH_DATA_DIR),
                  classes_to_use=[],
                  use_synth=True,
                  use_augmentation=True,
@@ -63,17 +64,34 @@ class BeneData:
                                 "horizontal_bar":10000,
                                 "vertical_bar":10000,
                                 "line":20000}):
-                
+        
+        """
+        Initialize the BeneData class.
+
+        Args:
+            processor (object): The AutoProcessor object from the transformers library.
+            labels_type (str): Type of labels to use, either 'xy' or 'chart_type'.
+            labels_max_length (int): Maximum length of labels.
+            frac_gen_train (float): Fraction of generated samples to include in training data.
+            data_dir (Path): Path to the data directory.
+            synth_data_dir (Path): Path to the synthetic data directory.
+            classes_to_use (list): List of chart types to use.
+            use_synth (bool): Whether to use synthetic data.
+            use_augmentation (bool): Whether to use data augmentation.
+            sort_axis (bool): Whether to sort the x-y data by x-axis values for scatter charts.
+            synth_paths (dict): Dictionary mapping chart types to their synthetic data paths.
+            synth_numbers (dict): Dictionary mapping chart types to the number of synthetic samples to use.
+        """
+
         self.processor = processor
         self.labels_type = labels_type 
         self.labels_max_length = labels_max_length
         self.data_dir = data_dir
-        self.aug_data_dir = aug_data_dir
+        self.synth_data_dir = synth_data_dir
         self.images_path = self.data_dir / "images"
         self.train_json_files = list((self.data_dir / "annotations").glob("*.json"))
         self.seed = 42
         self.frac_gen_train = frac_gen_train
-        self.include_scatter = include_scatter
         self.classes_to_use = classes_to_use
         self.synth_numbers = synth_numbers
         self.use_synth = use_synth
@@ -114,9 +132,11 @@ class BeneData:
 
     
     
-    def are_all_floats(self, l):
+    def are_all_floats(self, lst: List[str]) -> bool:
         """
-        Checks if all the elements in a list can be converted to floats
+        Checks if all the elements in a list can be converted to floats. 
+        It takes a list of strings as input and returns a boolean value,
+          indicating whether all elements can be converted to floats.
         """
         try:
             fl_l = [float(x) for x in l]
@@ -124,7 +144,11 @@ class BeneData:
         except:
             return False
         
-    def max_range(self, l):
+    def max_range(self, l: List[float]) -> List[float]:
+        """
+        Calculates the maximum range of a list of floating-point numbers. 
+        It takes a list of floats as input and returns the maximum range as a float.
+        """
         fl_l = [float(x) for x in l]
         try:
             l_range = max(fl_l)-min(fl_l)
@@ -133,7 +157,12 @@ class BeneData:
             return []
          
 
-    def round_sample_v2(self,l):
+    def round_sample_v2(self,l: List[str])-> List[str]:
+        """
+        Rounds the numbers in a list based on their maximum range and converts them to strings. 
+        It takes a list of strings representing numbers and the maximum range as input, 
+        and returns a new list of rounded and converted strings.
+        """
         if self.are_all_floats(l): 
             if bool(self.max_range(l)) & (self.max_range(l)[0]>0):
                 max_range = self.max_range(l)[0]
@@ -174,7 +203,6 @@ class BeneData:
             bool: True if the value is NaN, False otherwise
         """
         return isinstance(value, float) and str(value) == "nan"
-
 
 
 
@@ -228,8 +256,12 @@ class BeneData:
         return pd.DataFrame([row_dict])   
 
    
-    def tokenize(self,examples):
-        
+    def tokenize(self,examples: List[dict]) -> List[dict]:
+        """
+        Tokenizes the input examples using the processor and tokenizer. 
+        It takes a list of dictionaries representing the input examples as input
+        and returns a new list of dictionaries with tokenized inputs.
+        """
         
         
             
@@ -250,7 +282,12 @@ class BeneData:
         return  examples
 
 
-    def tokenize_train(self,examples):
+    def tokenize_train(self,examples: dict) -> dict:
+        """
+        Tokenizes the training example and applies additional transformations if augmentation is enabled. 
+        It takes a dictionary representing the training example as input 
+        and returns the tokenized and transformed example.
+        """
         if self.use_augmentation == True:
             examples["flattened_patches"] = [self.rescale(image) for image in examples["flattened_patches"]]
             examples["flattened_patches"] = [self.transforms(image.convert("RGB")) for image in examples["flattened_patches"]]
@@ -258,7 +295,12 @@ class BeneData:
         return self.tokenize(examples)
     
 
-    def tokenize_valid(self,examples):
+    def tokenize_valid(self,examples: dict) -> dict:
+        """
+        Tokenizes the validation example and applies transformations. 
+        It takes a dictionary representing the validation example as input 
+        and returns the tokenized and transformed example.
+        """
 
         examples["flattened_patches"] = [self.val_transform(image.convert("RGB")) for image in examples["flattened_patches"]]
     
@@ -266,6 +308,11 @@ class BeneData:
     
 
     def xy_to_x_augment(self,xy,dim = 0):
+        """
+        Extracts the x-coordinate values from the x-y data in a text string. 
+        It takes a string representing the text with x-y data 
+        and returns a new string containing only the x-coordinate values.
+        """
         try:
             # x = [y.split("^")[dim] for y in xy.split(";")]
             x = [y.split("<0x0A>")[dim].strip() for y in xy.split("|")]
@@ -277,6 +324,10 @@ class BeneData:
 
 
     def prepare_synth_df(self, df_aug):
+        """
+        Prepares the synthetic dataset DataFrame by processing x-y values and image paths. 
+        It takes a DataFrame representing the synthetic dataset as input and returns the processed DataFrame.
+        """
         
         df_aug["x"]=df_aug.text.apply(lambda x:self.xy_to_x_augment(x,dim=0))
         df_aug["y"]=df_aug.text.apply(lambda x:self.xy_to_x_augment(x,dim=1))
@@ -294,7 +345,12 @@ class BeneData:
 
 
     def get_aug_df_v2(self):
-
+        """
+         Loads and prepares the synthetic dataset by sampling from different classes. 
+         It takes the synthetic dataset DataFrame, the original DataFrame, 
+         and the number of samples to be generated as input, 
+         and returns the prepared synthetic dataset DataFrame.
+        """
         
         dfs = []
         for i in self.classes_to_use:
@@ -307,6 +363,10 @@ class BeneData:
 
 
     def sort_x_y(self,x,y,chart_type):
+        """
+         Sorts the x-y data points based on x-values for scatter plots. 
+         It takes a list of x-y coordinate pairs as input and returns the sorted list.
+        """
         if self.are_all_floats(x) & (chart_type=="scatter"):
             fl_x = [float(i) for i in x]
             if self.are_all_floats(y):
@@ -321,6 +381,10 @@ class BeneData:
             return list(zip(x,y))
 
     def get_df(self):
+        """
+        : Constructs the DataFrame by extracting ground truth information from JSON files. 
+        It takes a directory path containing JSON files as input and returns the constructed DataFrame.
+        """
 
         column_dict = {"images_path":self.train_json_files}
         df  =pd.DataFrame.from_dict(column_dict)
@@ -354,10 +418,15 @@ class BeneData:
 
         self.df = df.reset_index(drop=True)
 
-
         print("df constucted")
 
+
     def set_labels(self):
+        """
+        Sets the labels for the DataFrame based on the chosen labels type. 
+        It takes the DataFrame and a string representing the labels type as input 
+        and returns the DataFrame with updated labels.
+        """
 
         if self.labels_type == "xy":
             self.df['xy'] = self.df.apply(lambda x: list(zip(x.x,x.y)), axis=1)
@@ -372,7 +441,12 @@ class BeneData:
 
         # self.df["labels"] = self.df["labels_text"].swifter.apply(self.tokenize_sample)
 
+
     def token_length(self,text):
+        """
+         Calculates the token length of a given text after tokenization. 
+         It takes a dictionary representing an example as input and returns the token length as an integer.
+        """
         text = self.processor.tokenizer(text=text,     
                                     truncation=False, 
                                         return_tensors="pt", 
@@ -382,6 +456,12 @@ class BeneData:
         return len(text)
 
     def get_df_splits(self):
+
+        """
+        Processes the DataFrame by removing samples with token lengths exceeding the specified maximum, splitting the DataFrame into train and validation sets, and sampling generated samples for training. 
+        It takes the DataFrame, maximum token length, 
+        and number of generated samples as input and returns a tuple containing the train DataFrame, validation DataFrame, and generated samples DataFrame.
+        """
 
         self.get_df()
         
@@ -446,6 +526,10 @@ class BeneData:
         return ds
 
     def rescale(self,img,strech_factor=0.3):
+        """
+        Rescales the image to a specified size. 
+        It takes an image object and a tuple representing the target size as input and returns the rescaled image object.
+        """
         width, height = img.size
         rnd1 = random.uniform(-strech_factor, strech_factor)
         new_w = width + int(width*rnd1)
