@@ -1,4 +1,9 @@
 import os,sys
+import logging
+
+import torchvision
+torchvision.disable_beta_transforms_warning()
+
 from transformers import AutoProcessor, Pix2StructForConditionalGeneration
 from transformers import Seq2SeqTrainer, Seq2SeqTrainingArguments, default_data_collator
 
@@ -12,8 +17,14 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
+# Configure logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
+
+
 @hydra.main(config_path="config", config_name="config")
 def main(cfg: DictConfig):
+    logger.info("Starting the program")
 
     os.environ["CUDA_VISIBLE_DEVICES"] = cfg.CUDA_VISIBLE_DEVICES
 
@@ -31,7 +42,8 @@ def main(cfg: DictConfig):
         use_augmentation=cfg.use_augmentation,
         use_synth=cfg.use_synth,
         synth_paths=cfg.synth_paths,
-        synth_numbers=cfg.synth_numbers
+        synth_numbers=cfg.synth_numbers,
+        logger=logger
     )
 
     train, valid = data_pipe.get_ds_splits()
@@ -74,7 +86,9 @@ def main(cfg: DictConfig):
         eval_dataset=valid,
     )
 
+    logger.info("Training started")
     train_result = trainer.train()
+    logger.info("Training completed")
 
 
 if __name__ == "__main__":

@@ -12,12 +12,10 @@ from PIL import Image
 from datasets import Dataset
 from datasets import Image as ds_img
 
-
+import torchvision
+torchvision.disable_beta_transforms_warning()
 
 from transformers import AutoProcessor, Pix2StructForConditionalGeneration
-
-
-
 
 from transformers import  Seq2SeqTrainer,Seq2SeqTrainingArguments, EarlyStoppingCallback
 
@@ -47,6 +45,7 @@ SYNTH_DATA_DIR = "/home/jovis/Documents/WORK/Kaggle/Benetech_Making_Graphs_Acces
 
 class BeneData:
     def __init__(self, processor = None,
+                 logger = None,
                  labels_type = "xy",             
                  labels_max_length = 256,
                  frac_gen_train = 1,
@@ -64,7 +63,7 @@ class BeneData:
                                 "horizontal_bar":10000,
                                 "vertical_bar":10000,
                                 "line":20000}):
-        
+
         """
         Initialize the BeneData class.
 
@@ -84,6 +83,7 @@ class BeneData:
         """
 
         self.processor = processor
+        self.logger = logger
         self.labels_type = labels_type 
         self.labels_max_length = labels_max_length
         self.data_dir = data_dir
@@ -462,26 +462,28 @@ class BeneData:
         It takes the DataFrame, maximum token length, 
         and number of generated samples as input and returns a tuple containing the train DataFrame, validation DataFrame, and generated samples DataFrame.
         """
-
+        self.logger.info("Loading and preprocessing Benetech data...")
         self.get_df()
         
+        self.logger.info("Loading and preprocessing synthetic data...")
         self.get_aug_df_v2()
         if self.use_synth==True:
             
             self.df = pd.concat([self.df,self.df_aug],axis=0).reset_index(drop=True)
             
 
-        
+        self.logger.info("Setting labels")
         self.set_labels()
 
+        self.logger.info("Discarding examples that are too long...")
         self.df["token_length"] = self.df.labels.swifter.apply(self.token_length)
 
         numb_removed = len(self.df[self.df.token_length>=self.labels_max_length])
 
         self.df= self.df[self.df.token_length<self.labels_max_length].reset_index(drop=True) 
 
+        self.logger.info("length to high. Numb of tokens removed: "+str(numb_removed))
         
-        print("length to high. Numb of tokens removed",numb_removed)
 
 
         change = self.df[(self.df.source=="generated")&(self.df.chart_type=="dot")].sample(frac=0.1,random_state=self.seed).index
@@ -490,6 +492,7 @@ class BeneData:
         df_g = self.df[self.df.source!="extracted"]
         self.df_e = self.df[self.df.source=="extracted"].reset_index(drop=True)
 
+        self.logger.info("Train val spliting")
         train_e, valid_df = train_test_split(self.df_e, test_size=0.1, random_state=self.seed)
 
         self.df_g = df_g.sample(frac=self.frac_gen_train,random_state=self.seed).reset_index(drop=True)
@@ -497,10 +500,11 @@ class BeneData:
         train_df = pd.concat([self.df_g, train_e], axis=0).sample(frac=1,random_state=self.seed).reset_index(drop=True)
         
         
+        
         train_df = train_df[train_df.chart_type.isin(self.classes_to_use)]    
         valid_df = valid_df[valid_df.chart_type.isin(self.classes_to_use)]  
 
-
+        self.logger.info("removing selected list of samples from train...")
         self.load_cp()
         for sample_id in self.samples_to_remove:
             
@@ -553,6 +557,8 @@ class BeneData:
                     
 
         self.get_df_splits()
+
+        self.logger.info("Converting to huggingface datasets..") 
         self.train_ds = self.conver_to_ds(self.train_df[["image_path","labels"]])
         self.valid_ds = self.conver_to_ds(self.valid_df[["image_path","labels"]],is_valid=True)
 
