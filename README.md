@@ -42,6 +42,6 @@ This project is licensed under the [MIT License](LICENSE).
 
 Feel free to reach out to the repository owner for any questions or further information.
 
-[0] https://www.kaggle.com/competitions/benetech-making-graphs-accessible/overview /n
-[1] https://www.kaggle.com/datasets/brendanartley/benetech-extra-generated-data /n
-[2] https://www.kaggle.com/code/joviis/deplot-infer-v24
+1. [0] https://www.kaggle.com/competitions/benetech-making-graphs-accessible/overview /n
+2. [1] https://www.kaggle.com/datasets/brendanartley/benetech-extra-generated-data /n
+3. [2] https://www.kaggle.com/code/joviis/deplot-infer-v24
